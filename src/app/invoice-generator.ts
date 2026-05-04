@@ -15,6 +15,8 @@ const INVOICE_DEBUG = process.env.INVOICE_DEBUG === 'true';
 const LATEST_INVOICES_LIMIT = 10;
 const IS_VERCEL = process.env.VERCEL === '1';
 
+let inMemoryStatus: InvoiceGeneratorStatus | null = null;
+
 export type InvoiceShop = 'moto-tour' | 'defender' | 'unknown';
 
 export interface InvoiceRecord {
@@ -1029,39 +1031,71 @@ async function ensureStatusDir(): Promise<void> {
 }
 
 export async function readInvoiceGeneratorStatus(): Promise<InvoiceGeneratorStatus> {
-  await ensureStatusDir();
-
-  try {
-    const raw = await fs.readFile(getStatusFilePath(), 'utf-8');
-    const parsed = JSON.parse(raw) as InvoiceGeneratorStatus;
-    return {
-      lastCheckedAt: parsed.lastCheckedAt ?? null,
-      lastSuccessfulCheckAt: parsed.lastSuccessfulCheckAt ?? null,
-      lastCheckedInvoiceId: parsed.lastCheckedInvoiceId ?? null,
-      latestInvoices: Array.isArray(parsed.latestInvoices) ? parsed.latestInvoices : [],
-      note: parsed.note,
-      debugSteps: Array.isArray(parsed.debugSteps) ? parsed.debugSteps : [],
-    };
-  } catch {
-    return {
-      lastCheckedAt: null,
-      lastSuccessfulCheckAt: null,
-      lastCheckedInvoiceId: null,
-      latestInvoices: [],
-      debugSteps: [],
-    };
+  // Jeśli mamy status w RAM, zwróć go
+  if (inMemoryStatus) {
+    return inMemoryStatus;
   }
+
+  // Spróbuj czytać z pliku (tylko lokalnie)
+  if (!IS_VERCEL) {
+    try {
+      await ensureStatusDir();
+      const raw = await fs.readFile(getStatusFilePath(), 'utf-8');
+      const parsed = JSON.parse(raw) as InvoiceGeneratorStatus;
+      inMemoryStatus = {
+        lastCheckedAt: parsed.lastCheckedAt ?? null,
+        lastSuccessfulCheckAt: parsed.lastSuccessfulCheckAt ?? null,
+        lastCheckedInvoiceId: parsed.lastCheckedInvoiceId ?? null,
+        latestInvoices: Array.isArray(parsed.latestInvoices) ? parsed.latestInvoices : [],
+        note: parsed.note,
+        debugSteps: Array.isArray(parsed.debugSteps) ? parsed.debugSteps : [],
+      };
+      return inMemoryStatus;
+    } catch {
+      // Nie ma pliku, kontynuuj
+    }
+  }
+
+  // Zwróć domyślny status
+  const defaultStatus = {
+    lastCheckedAt: null,
+    lastSuccessfulCheckAt: null,
+    lastCheckedInvoiceId: null,
+    latestInvoices: [],
+    debugSteps: [],
+  };
+  inMemoryStatus = defaultStatus;
+  return defaultStatus;
 }
 
 async function writeInvoiceGeneratorStatus(status: InvoiceGeneratorStatus): Promise<void> {
-  await ensureStatusDir();
-  await fs.writeFile(getStatusFilePath(), JSON.stringify(status, null, 2), 'utf-8');
+  // Zawsze zapisz w RAM
+  inMemoryStatus = status;
+
+  // Spróbuj zapisać do pliku (lokalnie, zignoruj błędy na Vercel)
+  if (!IS_VERCEL) {
+    try {
+      await ensureStatusDir();
+      await fs.writeFile(getStatusFilePath(), JSON.stringify(status, null, 2), 'utf-8');
+    } catch {
+      // Zignoruj błędy zapisu do pliku
+    }
+  }
 }
 
 async function writeDebugHtmlSnapshot(fileName: string, html: string): Promise<void> {
-  await ensureStatusDir();
-  const filePath = path.join(path.dirname(getStatusFilePath()), fileName);
-  await fs.writeFile(filePath, html, 'utf-8');
+  // Snapshoty HTML będą zapisywane tylko lokalnie
+  if (IS_VERCEL) {
+    return;
+  }
+
+  try {
+    await ensureStatusDir();
+    const filePath = path.join(path.dirname(getStatusFilePath()), fileName);
+    await fs.writeFile(filePath, html, 'utf-8');
+  } catch {
+    // Zignoruj błędy zapisu
+  }
 }
 
 export async function refreshInvoiceGeneratorStatus(forceStartId?: number): Promise<InvoiceGeneratorStatus> {
