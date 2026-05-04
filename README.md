@@ -1,36 +1,55 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Invoice Scraper (Next.js)
 
-## Getting Started
+Aplikacja uruchamia scraper iDoSell i pokazuje status/faktury na stronie głównej.
 
-First, run the development server:
+## Lokalny start
+
+1. Zainstaluj zależności:
+
+```bash
+npm install
+```
+
+2. Skopiuj zmienne środowiskowe i wpisz swoje dane:
+
+```bash
+cp .env.example .env.local
+```
+
+3. Uruchom aplikację:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+4. Otwórz http://localhost:3000
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Gdzie dodać login i hasło (bez wrzucania do GitHub)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Nigdy nie wpisuj loginu i hasła bezpośrednio w kodzie. Używaj tylko zmiennych środowiskowych:
 
-## Learn More
+- `INVOICE_PANEL_LOGIN`
+- `INVOICE_PANEL_PASSWORD`
 
-To learn more about Next.js, take a look at the following resources:
+Plik `.env.local` jest ignorowany przez git (`.gitignore` ma wpis `.env*`), więc dane nie trafią do repozytorium.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Vercel
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. Zaimportuj repo do Vercel.
+2. W projekcie Vercel przejdź do: Settings -> Environment Variables.
+3. Dodaj:
 
-## Deploy on Vercel
+- `INVOICE_PANEL_LOGIN`
+- `INVOICE_PANEL_PASSWORD`
+- opcjonalnie: `INVOICE_START_ID`, `INVOICE_DEBUG`
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+4. Zrób deploy.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Kod używa Playwright i uruchamia Chromium kompatybilne z Vercel (`@sparticuz/chromium`) po stronie serwera.
+
+## API
+
+- `GET /api/invoices` - pobiera status
+- `GET /api/invoices?forceRefresh=true` - pobiera status i wymusza odświeżenie
+- `POST /api/invoices` - wymusza odświeżenie scrapera
+- `GET /api/invoices/:invoiceId/xlsx` - pobiera XLSX dla faktury z ostatniego statusu
