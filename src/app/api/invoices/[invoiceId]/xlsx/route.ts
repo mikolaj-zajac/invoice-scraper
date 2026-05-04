@@ -3,7 +3,7 @@ import { buildInvoiceXlsx, getInvoiceGeneratorStatus } from '@/app/invoice-gener
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 type Params = {
   params: Promise<{

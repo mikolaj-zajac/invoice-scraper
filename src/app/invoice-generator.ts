@@ -38,25 +38,48 @@ export interface InvoiceGeneratorStatus {
 }
 
 async function launchInvoiceBrowser() {
-  if (IS_VERCEL) {
-    const [{ chromium: playwrightChromium }, { default: chromium }] = await Promise.all([
-      import('playwright-core'),
-      import('@sparticuz/chromium'),
-    ]);
+  const maxRetries = 3;
+  let lastError: Error | null = null;
 
-    const executablePath = await chromium.executablePath();
-    return playwrightChromium.launch({
-      args: chromium.args,
-      executablePath,
-      headless: true,
-    });
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      if (IS_VERCEL) {
+        const [{ chromium: playwrightChromium }, { default: chromium }] = await Promise.all([
+          import('playwright-core'),
+          import('@sparticuz/chromium'),
+        ]);
+
+        const executablePath = await chromium.executablePath();
+        console.log(`[INVOICE-BROWSER] Attempt ${attempt}: Chromium path=${executablePath}`);
+
+        const browser = await playwrightChromium.launch({
+          args: chromium.args,
+          executablePath,
+          headless: true,
+        });
+
+        console.log(`[INVOICE-BROWSER] Successfully launched Chromium on attempt ${attempt}`);
+        return browser;
+      }
+
+      const { chromium } = await import('playwright');
+      return chromium.launch({
+        headless: BROWSER_HEADLESS,
+        slowMo: Number.isFinite(BROWSER_SLOW_MO_MS) && BROWSER_SLOW_MO_MS > 0 ? BROWSER_SLOW_MO_MS : 0,
+      });
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      console.error(`[INVOICE-BROWSER] Attempt ${attempt} failed:`, lastError.message);
+
+      if (attempt < maxRetries) {
+        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+        console.log(`[INVOICE-BROWSER] Retrying in ${delay}ms...`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
   }
 
-  const { chromium } = await import('playwright');
-  return chromium.launch({
-    headless: BROWSER_HEADLESS,
-    slowMo: Number.isFinite(BROWSER_SLOW_MO_MS) && BROWSER_SLOW_MO_MS > 0 ? BROWSER_SLOW_MO_MS : 0,
-  });
+  throw new Error(`Failed to launch browser after ${maxRetries} attempts: ${lastError?.message}`);
 }
 
 function addDebugStep(debugSteps: string[], message: string): void {
