@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 type InvoiceShop = 'moto-tour' | 'defender' | 'unknown';
 
@@ -21,7 +21,7 @@ interface InvoiceGeneratorStatus {
 }
 
 interface InvoiceDashboardProps {
-  initialStatus: InvoiceGeneratorStatus;
+  initialStatus?: InvoiceGeneratorStatus | null;
 }
 
 function formatDate(value: string | null): string {
@@ -38,7 +38,7 @@ function getShopFromInvoiceNumber(invoiceNumber: string): string | null {
 }
 
 export default function InvoiceDashboard({ initialStatus }: InvoiceDashboardProps) {
-  const [status, setStatus] = useState<InvoiceGeneratorStatus | null>(initialStatus);
+  const [status, setStatus] = useState<InvoiceGeneratorStatus | null>(initialStatus ?? null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +47,7 @@ export default function InvoiceDashboard({ initialStatus }: InvoiceDashboardProp
 
   const loadStatus = async (forceRefresh = false) => {
     setError(null);
+    setLoading(true);
 
     try {
       const response = await fetch(`/api/invoices?forceRefresh=${forceRefresh ? 'true' : 'false'}`, {
@@ -85,14 +86,30 @@ export default function InvoiceDashboard({ initialStatus }: InvoiceDashboardProp
     }
   };
 
+  useEffect(() => {
+    const id = setTimeout(() => {
+      void loadStatus(false).then(() => {
+        void refreshNow();
+      });
+    }, 0);
+    return () => clearTimeout(id);
+  }, []);
+
+  const downloadXlsx = (invoiceId: number, invoiceNumber: string) => {
+    const safe = invoiceNumber ? invoiceNumber.replace(/[^a-zA-Z0-9_-]/g, '_') : String(invoiceId);
+    const url = `/api/invoices/${invoiceId}/xlsx`;
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `faktura-${safe}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
+
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-6 sm:p-10">
       <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
         <h1 className="text-2xl font-semibold text-zinc-900">Generator faktur iDoSell</h1>
-        <p className="mt-2 text-sm text-zinc-600">
-          Panel uruchamia scraper i zapisuje ostatnie znalezione faktury. Dane logowania są trzymane tylko w zmiennych
-          środowiskowych po stronie serwera.
-        </p>
 
         <div className="mt-5 flex flex-wrap gap-3">
           <button
@@ -158,7 +175,7 @@ export default function InvoiceDashboard({ initialStatus }: InvoiceDashboardProp
                   <th className="px-4 py-3">Numer</th>
                   <th className="px-4 py-3">Sklep</th>
                   <th className="px-4 py-3">Pobrano</th>
-                  <th className="px-4 py-3">Akcje</th>
+                  <th className="px-4 py-3">Pobierz</th>
                 </tr>
               </thead>
               <tbody>
@@ -169,22 +186,12 @@ export default function InvoiceDashboard({ initialStatus }: InvoiceDashboardProp
                     <td className="px-4 py-3 text-zinc-700">{getShopFromInvoiceNumber(invoice.invoiceNumber) || invoice.shop}</td>
                     <td className="px-4 py-3 text-zinc-700">{formatDate(invoice.fetchedAt)}</td>
                     <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-3">
-                        <a
-                          className="font-medium text-blue-700 hover:underline"
-                          href={invoice.invoiceUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          Pobierz
-                        </a>
-                        <a
-                          className="font-medium text-green-700 hover:underline"
-                          href={`/api/invoices/${invoice.invoiceId}/xlsx`}
-                        >
-                          XLSX
-                        </a>
-                      </div>
+                      <button
+                        onClick={() => downloadXlsx(invoice.invoiceId, invoice.invoiceNumber)}
+                        className="rounded-md bg-emerald-600 px-3 py-1 text-sm text-white hover:bg-emerald-500"
+                      >
+                        Pobierz
+                      </button>
                     </td>
                   </tr>
                 ))}
