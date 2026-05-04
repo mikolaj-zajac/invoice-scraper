@@ -31,6 +31,12 @@ function formatDate(value: string | null): string {
   return date.toLocaleString('pl-PL');
 }
 
+function getShopFromInvoiceNumber(invoiceNumber: string): string | null {
+  if (/^MOTO\//i.test(invoiceNumber)) return 'moto-tour';
+  if (/^DEF\//i.test(invoiceNumber)) return 'defender';
+  return null;
+}
+
 export default function InvoiceDashboard({ initialStatus }: InvoiceDashboardProps) {
   const [status, setStatus] = useState<InvoiceGeneratorStatus | null>(initialStatus);
   const [loading, setLoading] = useState(false);
@@ -160,7 +166,7 @@ export default function InvoiceDashboard({ initialStatus }: InvoiceDashboardProp
                   <tr key={invoice.invoiceId} className="border-t border-zinc-100">
                     <td className="px-4 py-3 font-medium text-zinc-900">{invoice.invoiceId}</td>
                     <td className="px-4 py-3 text-zinc-700">{invoice.invoiceNumber}</td>
-                    <td className="px-4 py-3 text-zinc-700">{invoice.shop}</td>
+                    <td className="px-4 py-3 text-zinc-700">{getShopFromInvoiceNumber(invoice.invoiceNumber) || invoice.shop}</td>
                     <td className="px-4 py-3 text-zinc-700">{formatDate(invoice.fetchedAt)}</td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-3">
@@ -170,10 +176,10 @@ export default function InvoiceDashboard({ initialStatus }: InvoiceDashboardProp
                           target="_blank"
                           rel="noreferrer"
                         >
-                          Podgląd
+                          Pobierz
                         </a>
                         <a
-                          className="font-medium text-zinc-900 hover:underline"
+                          className="font-medium text-green-700 hover:underline"
                           href={`/api/invoices/${invoice.invoiceId}/xlsx`}
                         >
                           XLSX
